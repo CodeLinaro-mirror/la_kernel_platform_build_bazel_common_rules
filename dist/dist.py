@@ -56,17 +56,11 @@ def files_to_dist(pattern):
 
 
 def copy_files_to_dist_dir(files, archives, dist_dir, flat, prefix,
-    strip_components, archive_prefix, **ignored):
+    archive_prefix, **ignored):
     logging.info("Copying to %s", dist_dir)
 
     for src in files:
-        if flat:
-            src_relpath = os.path.basename(src)
-        elif strip_components > 0:
-            src_relpath = src.split('/', strip_components)[-1]
-        else:
-            src_relpath = src
-
+        src_relpath = os.path.basename(src) if flat else src
         src_relpath = os.path.join(prefix, src_relpath)
         src_abspath = os.path.abspath(src)
 
@@ -119,9 +113,6 @@ def main():
         "--flat",
         action="store_true",
         help="ignore subdirectories in the manifest")
-    parser.add_argument(
-        "--strip_components", type=int, default=0,
-        help="number of leading components to strip from paths before applying --prefix")
     parser.add_argument(
         "--prefix", default="",
         help="path prefix to apply within dist_dir for copied files")
