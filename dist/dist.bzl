@@ -62,8 +62,10 @@ def copy_to_dist_dir(
         archives = None,
         flat = None,
         prefix = None,
+        strip_components = 0,
         archive_prefix = None,
         dist_dir = None,
+        log = None,
         **kwargs):
     """A dist rule to copy files out of Bazel's output directory into a custom location.
 
@@ -82,6 +84,9 @@ def copy_to_dist_dir(
           extracted to `--dist_dir`.
         flat: If true, `--flat` is provided to the script by default. Flatten the distribution
           directory.
+        strip_components: If specified, `--strip_components <prefix>` is provided to the script. Strip
+          leading components from the existing copied file paths before applying --prefix
+          (if specified).
         prefix: If specified, `--prefix <prefix>` is provided to the script by default. Path prefix
           to apply within dist_dir for copied files.
         archive_prefix: If specified, `--archive_prefix <prefix>` is provided to the script by
@@ -91,6 +96,10 @@ def copy_to_dist_dir(
           In particular, if this is a relative path, it is interpreted as a relative path
           under workspace root when the target is executed with `bazel run`.
           See details by running the target with `--help`.
+        log: If specified, `--log <log>` is provided to the script by default. This sets the
+          default log level of the script.
+
+          See `dist.py` for allowed values and the default value.
         kwargs: Additional attributes to the internal rule, e.g.
           [`visibility`](https://docs.bazel.build/versions/main/visibility.html).
 
@@ -100,12 +109,18 @@ def copy_to_dist_dir(
     default_args = []
     if flat:
         default_args.append("--flat")
+    if strip_components != None:
+        if strip_components < 0:
+            fail("strip_components must greater than 0, but is %s" % strip_components)
+        default_args += ["--strip_components", str(strip_components)]
     if prefix != None:
         default_args += ["--prefix", prefix]
     if archive_prefix != None:
         default_args += ["--archive_prefix", archive_prefix]
     if dist_dir != None:
         default_args += ["--dist_dir", dist_dir]
+    if log != None:
+        default_args += ["--log", log]
 
     _generate_dist_manifest(
         name = name + "_dist_manifest",
