@@ -32,12 +32,28 @@ dist dir, or perform some kind of content hash checking.
 """
 
 import argparse
+import collections
 import glob
 import logging
 import os
 import shutil
 import sys
 import tarfile
+
+def ensure_unique_filenames(files):
+    basename_to_srcs_map = collections.defaultdict(list)
+    for f in files:
+        basename_to_srcs_map[os.path.basename(f)].append(f)
+
+    duplicates_exist = False
+    for (basename, srcs) in basename_to_srcs_map.items():
+        if len(srcs) > 1:
+            duplicates_exist = True
+            logging.error('Destination filename "%s" has multiple possible sources: %s',
+                         basename, srcs)
+
+    if duplicates_exist:
+        sys.exit(1)
 
 
 def files_to_dist(pattern):
@@ -56,7 +72,14 @@ def files_to_dist(pattern):
 
 
 def copy_files_to_dist_dir(files, archives, dist_dir, flat, prefix,
-    strip_components, archive_prefix, **ignored):
+    strip_components, archive_prefix, wipe_dist_dir, allow_duplicate_filenames, **ignored):
+
+    if flat and not allow_duplicate_filenames:
+        ensure_unique_filenames(files)
+
+    if wipe_dist_dir and os.path.exists(dist_dir):
+        shutil.rmtree(dist_dir)
+
     logging.info("Copying to %s", dist_dir)
 
     for src in files:
@@ -130,6 +153,16 @@ def main():
         help="Path prefix to apply within dist_dir for extracted archives. " +
              "Supported archives: tar.")
     parser.add_argument("--log", help="Log level (debug, info, warning, error)", default="debug")
+    parser.add_argument(
+        "--wipe_dist_dir",
+        action="store_true",
+        help="remove existing dist_dir prior to running"
+    )
+    parser.add_argument(
+        "--allow_duplicate_filenames",
+        action="store_true",
+        help="allow multiple files with the same name to be copied to dist_dir (overwriting)"
+    )
 
     args = parser.parse_args(sys.argv[1:])
 
