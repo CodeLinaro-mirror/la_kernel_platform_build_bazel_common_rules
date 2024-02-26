@@ -15,6 +15,8 @@
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load(":exec_aspect.bzl", "ExecAspectInfo", "exec_aspect")
 
+_DEFAULT_HASHBANG = "/bin/bash -e"
+
 def _impl(ctx):
     out_file = ctx.actions.declare_file(ctx.label.name)
 
@@ -46,6 +48,11 @@ exec = rule(
     doc = """Run a script when `bazel run` this target.
 
 See [documentation] for the `args` attribute.
+
+**NOTE**: Like [genrule](https://bazel.build/reference/be/general#genrule)s,
+hermeticity is not enforced or guaranteed, especially if `script` accesses PATH.
+See [`Genrule Environment`](https://bazel.build/reference/be/general#genrule-environment)
+for details.
 """,
     attrs = {
         "data": attr.label_list(aspects = [exec_aspect], allow_files = True, doc = """A list of labels providing runfiles. Labels may be used in `script`.
@@ -54,7 +61,7 @@ Executables in `data` must not have the `args` and `env` attribute. Use
 [`embedded_exec`](#embedded_exec) to wrap the depended target so its env and args
 are preserved.
 """),
-        "hashbang": attr.string(default = "/bin/bash -e", doc = "Hashbang of the script."),
+        "hashbang": attr.string(default = _DEFAULT_HASHBANG, doc = "Hashbang of the script."),
         "script": attr.string(doc = """The script.
 
 Use `$(rootpath <label>)` to refer to the path of a target specified in `data`. See
@@ -73,6 +80,11 @@ exec_test = rule(
     doc = """Run a test script when `bazel test` this target.
 
 See [documentation] for the `args` attribute.
+
+**NOTE**: Like [genrule](https://bazel.build/reference/be/general#genrule)s,
+hermeticity is not enforced or guaranteed, especially if `script` accesses PATH.
+See [`Genrule Environment`](https://bazel.build/reference/be/general#genrule-environment)
+for details.
 """,
     attrs = {
         "data": attr.label_list(aspects = [exec_aspect], allow_files = True, doc = """A list of labels providing runfiles. Labels may be used in `script`.
@@ -81,7 +93,7 @@ Executables in `data` must not have the `args` and `env` attribute. Use
 [`embedded_exec`](#embedded_exec) to wrap the depended target so its env and args
 are preserved.
 """),
-        "hashbang": attr.string(default = "/bin/bash -e", doc = "Hashbang of the script."),
+        "hashbang": attr.string(default = _DEFAULT_HASHBANG, doc = "Hashbang of the script."),
         "script": attr.string(doc = """The script.
 
 Use `$(rootpath <label>)` to refer to the path of a target specified in `data`. See
@@ -94,3 +106,41 @@ See `build/bazel_common_rules/exec/tests/BUILD` for examples.
     },
     test = True,
 )
+
+def exec_rule(
+        cfg = None,
+        attrs = None):
+    """Returns a rule() that is similar to `exec`, but with the given incoming transition.
+
+    **NOTE**: Like [genrule](https://bazel.build/reference/be/general#genrule)s,
+    hermeticity is not enforced or guaranteed for targets of the returned
+    rule, especially if a target specifies `script` that accesses PATH.
+    See [`Genrule Environment`](https://bazel.build/reference/be/general#genrule-environment)
+    for details.
+
+    Args:
+        cfg: [Incoming edge transition](https://bazel.build/extending/config#incoming-edge-transitions)
+            on the rule
+        attrs: Additional attributes to be added to the rule.
+
+            Specify `_allowlist_function_transition` if you need a transition.
+    Returns:
+        a rule
+    """
+
+    fixed_attrs = {
+        "data": attr.label_list(aspects = [exec_aspect], allow_files = True),
+        "hashbang": attr.string(default = _DEFAULT_HASHBANG),
+        "script": attr.string(),
+    }
+
+    if attrs == None:
+        attrs = {}
+    attrs = attrs | fixed_attrs
+
+    return rule(
+        implementation = _impl,
+        attrs = attrs,
+        cfg = cfg,
+        executable = True,
+    )
